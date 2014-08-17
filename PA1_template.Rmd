@@ -2,19 +2,126 @@
 
 
 ## Loading and preprocessing the data
-
-
-
+```{r}
+activityData <- read.csv("activity.csv")
+```
 ## What is mean total number of steps taken per day?
+```{r}
+## load the plyr library for aggregate functions
+library(plyr)
 
+## aggregate the sum of steps by date
+steps_by_date <- ddply(activityData,'date',function(activityData) sum=sum(activityData$steps))
 
+## rename the aggregated field to something more descriptive
+colnames(steps_by_date)[2] <- "total_steps"
 
+## create a histogram of the total number of steps by date
+hist(steps_by_date$total_steps,xlab = "Total Steps by Date", main = "Total Steps by Date")
+
+## calculate the median of the total steps by date
+median(steps_by_date$total_steps,na.rm = T)
+
+## calculate the mean of the total steps by date
+mean(steps_by_date$total_steps,na.rm = T)
+```
 ## What is the average daily activity pattern?
+```{r}
+## load ggplot2 library
+library(ggplot2)
 
+## group the steps in activity data by intervals for each day
+steps_by_interval <- ddply(activityData,'interval',function(activityData) avg = mean(activityData$steps,na.rm = T))
 
+## rename the aggregate column to Average Steps
+colnames(steps_by_interval)[2] <- "AverageSteps"
 
+## plot the aggregate data onto a line graph
+## with the x axis as intervals and the y axis as average number of steps
+qplot(steps_by_interval$interval,steps_by_interval$AverageSteps,geom = "line",main = "Average Steps per Interval", xlab = "Interval", ylab = "Average Number of Steps")
+
+## find the interval that has the highest average number of steps
+steps_by_interval[steps_by_interval$AverageSteps == max(steps_by_interval$AverageSteps),]
+```
 ## Imputing missing values
+## count the number of NAs for each column in the data
+```{r}
+## count the number of NAs for each column in the data
+count(is.na(activityData))
+```
+The steps variable has NA values.
+```{r}
+## create a seperate data set that we can impute
+activityData_imp <- activityData
 
+## create a function to intake an interval and output the average steps for that interval
+replaceNAs <-
+function(x){
+    averageSteps <- steps_by_interval[steps_by_interval$interval == x,2]
+    return(averageSteps)
+}
 
+for(i in 1:length(activityData_imp[,1])){
+     if(is.na(activityData_imp[i,1])){
+         activityData_imp[i,1] <- replaceNAs(activityData[i,3])
+     }
+}
 
+## count the number of NAs for each column in the imputted data
+count(is.na(activityData_imp))
+```
+There are no more NA values in the steps variable
+```{r}
+## aggregate the imputted data to total steps by date
+steps_by_date_imp <- ddply(activityData_imp,'date',function(activityData_imp) sum=sum(activityData_imp$steps))
+
+## rename the aggregate column with a descriptive title
+colnames(steps_by_date_imp)[2] <- "total_steps"
+
+## create a histogram showing the total steps for each date
+hist(steps_by_date_imp$total_steps,xlab = "Total Steps by Date", main = "Total Steps by Date with Imputed Data")
+```
+Here is the median of the new, imputted data:
+```{r}
+## find the median of the imputted steps by date data
+median(steps_by_date_imp$total_steps,na.rm = T)
+```
+Here is the mean of the new, imputted data:
+```{r}
+## find the mean of the imputted steps by date data
+mean(steps_by_date_imp$total_steps,na.rm = T)
+```
 ## Are there differences in activity patterns between weekdays and weekends?
+```{r}
+## convert the date field to the appropriate date data type in R
+activityData_imp$date <- as.POSIXct(activityData_imp$date, format="%Y-%m-%d")
+
+## create a weekday factor variable to be added to the dataset
+weekday <- factor("weekday",levels = c("weekday","weekend"),labels = c("weekday","weekend"))
+
+## add the weekday variable as a column to the dataset
+activityData_imp <- cbind(activityData_imp,weekday)
+
+## assign the weekday variable the appropriate value based on the date field
+activityData_imp[weekdays(activityData_imp$date) %in% c("Saturday", "Sunday"),4] <- "weekend"
+```
+After adding the field and calulating the values for each row, here are the stats:
+```{r}
+## aggregate the data by weekend vs. weekday and calculate the mean for each level
+ddply(activityData_imp,'weekday',function(activityData_imp) avg = mean(activityData_imp$steps))
+```
+## Here are the plots for weekdays vs. weekends
+```{r}
+steps_by_interval_week <- ddply(activityData_imp,c('weekday','interval'),function(activityData_imp) avg = mean(activityData_imp$steps,na.rm = T))
+
+## rename the aggregate column to Average Steps
+colnames(steps_by_interval_week)[3] <- "AverageSteps"
+
+## create weekday vs. weekend aggregate
+plot_weekday <- subset(steps_by_interval_week,weekday == "weekday")
+plot_weekend <- subset(steps_by_interval_week,weekday == "weekend")
+
+## create the plot canvas
+par(mfrow = c(2,1))
+plot(plot_weekend$interval,plot_weekend$AverageSteps,type = 'l',main = 'Weekend',xlab = "Interval", ylab = "Average Steps")
+plot(plot_weekday$interval,plot_weekday$AverageSteps,type = 'l',main = 'Weekday',xlab = "Interval", ylab = "Average Steps")
